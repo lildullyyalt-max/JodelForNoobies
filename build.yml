@@ -1,0 +1,47 @@
+name: Build JodelPlus
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile dylib
+        run: |
+          xcrun -sdk iphoneos clang -arch arm64 -dynamiclib -fobjc-arc \
+            -miphoneos-version-min=14.0 \
+            -framework UIKit -framework Foundation -framework PhotosUI \
+            -install_name @executable_path/Frameworks/JodelPlus.dylib \
+            -o JodelPlus.dylib JodelPlus.m
+          file JodelPlus.dylib
+
+      - name: Package .deb
+        run: |
+          brew install dpkg
+          mkdir -p pkg/DEBIAN pkg/Library/MobileSubstrate/DynamicLibraries
+          cp JodelPlus.dylib pkg/Library/MobileSubstrate/DynamicLibraries/
+          printf '{ Filter = { Bundles = ( "com.go-tellm.tellm" ); }; }\n' > pkg/Library/MobileSubstrate/DynamicLibraries/JodelPlus.plist
+          cat > pkg/DEBIAN/control <<'CTL'
+          Package: com.jodelplus.tweak
+          Name: JodelPlus
+          Version: 1.0.0
+          Architecture: iphoneos-arm
+          Description: Jodel gallery upload, copy/paste, no ads
+          Maintainer: you
+          Author: you
+          Section: Tweaks
+          Depends: firmware (>= 14.0)
+          CTL
+          sed -i '' 's/^          //' pkg/DEBIAN/control
+          dpkg-deb -Zgzip -b pkg JodelPlus.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JodelPlus
+          path: |
+            JodelPlus.deb
+            JodelPlus.dylib

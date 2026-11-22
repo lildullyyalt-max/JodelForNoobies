@@ -1,0 +1,37 @@
+name: Build dylibs
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show files in repo
+        run: ls -la
+
+      - name: Compile every .m file into a .dylib
+        run: |
+          mkdir -p out
+          for f in JodelPlus ButtonFix; do
+            if [ -f "$f.m" ]; then
+              echo "Building $f"
+              xcrun -sdk iphoneos clang -arch arm64 -dynamiclib -fobjc-arc \
+                -miphoneos-version-min=14.0 \
+                -framework UIKit -framework Foundation -framework PhotosUI \
+                -install_name @executable_path/Frameworks/$f.dylib \
+                -o out/$f.dylib $f.m
+            else
+              echo "SKIPPED: $f.m is not in the repo"
+            fi
+          done
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tweaks
+          path: out/*.dylib
+          if-no-files-found: error
